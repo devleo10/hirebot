@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "JobJinni – Smart Autofill for Job Seekers",
+  "description": "Auto-fill job application forms & inject saved interview answers across job platforms.",
+  "version": "0.1.0",
+  "options_page": "options/options.html",
+  "action": {
+    "default_title": "JobJinni",
+    "default_popup": "popup/popup.html"
+  },
+  "permissions": [
+  "storage",
+  "scripting",
+  "activeTab",
+  "contextMenus"
+  ],
+  "host_permissions": [
+    "*://*.linkedin.com/*",
+    "*://*.naukri.com/*",
+    "*://*.internshala.com/*",
+    "*://*.wellfound.com/*",
+    "*://*.indeed.com/*"
+  ],
+  "commands": {
+    "trigger-smart-fill": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J"
+      },
+      "description": "Trigger JobJinni Smart Fill"
+    }
+  },
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.linkedin.com/*",
+        "*://*.naukri.com/*",
+        "*://*.internshala.com/*",
+        "*://*.wellfound.com/*",
+        "*://*.indeed.com/*"
+      ],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
