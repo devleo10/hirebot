@@ -1,24 +1,52 @@
-body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 0; background:#f8fafc; }
-#app { width: 360px; padding: 12px; }
-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-h1 { font-size:16px; margin:0; }
-button, input, textarea, select { font-family: inherit; font-size: 13px; }
+body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f3f4f6; }
+#app { width: 380px; padding: 0; }
+.jj-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	background: linear-gradient(90deg, #2563eb 60%, #60a5fa 100%);
+	color: #fff;
+	padding: 14px 18px 10px 16px;
+	border-radius: 0 0 16px 16px;
+	box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+}
+.jj-header h1 {
+	font-size: 18px;
+	font-weight: 700;
+	margin: 0;
+	letter-spacing: 0.5px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.jj-header .jj-logo {
+	width: 28px; height: 28px; border-radius: 8px; background: #fff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; box-shadow: 0 1px 4px #2563eb22;
+}
+.jj-header .jj-hotkey {
+	font-size: 11px; background: #fff2; color: #fff; border-radius: 6px; padding: 2px 8px; margin-left: 8px;
+}
+.jj-banner {
+	margin: 0 18px; margin-top: 12px; margin-bottom: 0; padding: 8px 12px; border-radius: 6px; font-size: 13px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; display: none;
+}
+.jj-banner.active { display: block; }
+.section { margin: 22px 18px 0 18px; }
+.section h3 { font-size: 14px; margin: 0 0 8px; color: #2563eb; font-weight: 600; letter-spacing: 0.2px; }
 .profile-list { margin:0; padding:0; list-style:none; }
-.profile-list li { padding:6px 8px; background:#fff; margin-bottom:4px; border:1px solid #e2e8f0; border-radius:4px; display:flex; align-items:center; justify-content:space-between; }
-.badge { background:#2563eb; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; }
+.profile-list li { padding:7px 10px; background:#fff; margin-bottom:5px; border:1px solid #e0e7ef; border-radius:6px; display:flex; align-items:center; justify-content:space-between; font-size: 13px; }
+.badge { background:#2563eb; color:#fff; padding:2px 7px; border-radius:10px; font-size:10px; }
 .small { font-size:11px; color:#475569; }
-.section { margin-top:14px; }
-input[type=text], textarea { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #cbd5e1; border-radius:4px; }
+input[type=text], textarea { width:100%; box-sizing:border-box; padding:7px 10px; border:1px solid #cbd5e1; border-radius:5px; margin-bottom: 6px; background: #f9fafb; }
 textarea { resize: vertical; min-height:60px; }
-.inline { display:flex; gap:6px; }
+.inline { display:flex; gap:7px; }
 .inline > * { flex:1; }
-.primary { background:#2563eb; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; }
+.primary { background:#2563eb; color:#fff; border:none; padding:7px 12px; border-radius:5px; cursor:pointer; font-weight: 600; transition: background 0.15s; }
 .primary:hover { background:#1d4ed8; }
-.secondary { background:#e2e8f0; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; }
+.secondary { background:#e2e8f0; border:none; padding:7px 12px; border-radius:5px; cursor:pointer; font-weight: 600; }
 .secondary:hover { background:#cbd5e1; }
-.toggle-row { display:flex; align-items:center; gap:6px; margin-top:8px; }
-hr { border:none; border-top:1px solid #e2e8f0; margin:12px 0; }
-.answer-item { background:#fff; border:1px solid #e2e8f0; padding:6px; border-radius:4px; margin-bottom:6px; }
-.answer-item h4 { margin:0 0 4px; font-size:12px; }
-.answer-item pre { margin:0; white-space:pre-wrap; font-size:11px; }
+.answer-item { background:#fff; border:1px solid #e2e8f0; padding:8px; border-radius:5px; margin-bottom:7px; }
+.answer-item h4 { margin:0 0 4px; font-size:12px; color: #2563eb; }
+.answer-item pre { margin:0; white-space:pre-wrap; font-size:11px; color: #334155; }
 .search-box { margin-bottom:8px; }
+.empty-state { color: #64748b; font-size: 13px; text-align: center; margin: 18px 0 0 0; }
+.jj-test-btn { margin: 10px 0 0 0; background: #f1f5f9; color: #2563eb; border: 1px solid #2563eb; border-radius: 5px; font-weight: 600; padding: 6px 12px; cursor: pointer; transition: background 0.15s; }
+.jj-test-btn:hover { background: #e0e7ef; }

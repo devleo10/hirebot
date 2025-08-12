@@ -13,28 +13,46 @@ async function init() {
 
 function uuid() { return crypto.randomUUID(); }
 
+
 function render(profiles, activeId, answers, state) {
   app.innerHTML = '';
-  const header = document.createElement('header');
-  header.innerHTML = `<h1>JobJinni</h1>`;
+  // Header
+  const header = document.createElement('div');
+  header.className = 'jj-header';
+  header.innerHTML = `
+    <span class="jj-logo">JJ</span>
+    <h1>JobJinni <span class="jj-hotkey">Ctrl+Shift+J</span></h1>
+  `;
   app.appendChild(header);
+
+  // Feedback banner
+  const banner = document.createElement('div');
+  banner.className = 'jj-banner';
+  banner.id = 'jjBanner';
+  app.appendChild(banner);
 
   // Profiles section
   const profSec = document.createElement('div');
   profSec.className = 'section';
-  profSec.innerHTML = `<h3 style="margin:0 0 6px;font-size:13px;">Profiles</h3>`;
+  profSec.innerHTML = `<h3>Profiles</h3>`;
   const list = document.createElement('ul');
   list.className = 'profile-list';
-  profiles.forEach(p => {
+  if (profiles.length === 0) {
     const li = document.createElement('li');
-    li.innerHTML = `<span>${p.label || p.fullName || p.email || 'Unnamed'}</span>`;
-    const btn = document.createElement('button');
-    btn.textContent = p.id === activeId ? 'Active' : 'Make Active';
-    btn.className = p.id === activeId ? 'secondary' : 'primary';
-    btn.onclick = async () => { await setActiveProfileId(p.id); init(); };
-    li.appendChild(btn);
+    li.innerHTML = `<span class="empty-state">No profiles yet. Add one below!</span>`;
     list.appendChild(li);
-  });
+  } else {
+    profiles.forEach(p => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${p.label || p.fullName || p.email || 'Unnamed'}</span>`;
+      const btn = document.createElement('button');
+      btn.textContent = p.id === activeId ? 'Active' : 'Make Active';
+      btn.className = p.id === activeId ? 'secondary' : 'primary';
+      btn.onclick = async () => { await setActiveProfileId(p.id); showBanner('Active profile changed.', 'success'); init(); };
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+  }
   profSec.appendChild(list);
 
   const addForm = document.createElement('div');
@@ -54,7 +72,7 @@ function render(profiles, activeId, answers, state) {
   // Answers section
   const ansSec = document.createElement('div');
   ansSec.className = 'section';
-  ansSec.innerHTML = `<h3 style="margin:0 0 6px;font-size:13px;">Saved Answers</h3>`;
+  ansSec.innerHTML = `<h3>Saved Answers</h3>`;
 
   const searchBox = document.createElement('div');
   searchBox.className = 'search-box';
@@ -66,27 +84,53 @@ function render(profiles, activeId, answers, state) {
     .filter(([k,v]) => !state.q || k.includes(state.q.toLowerCase()))
     .sort((a,b) => b[1].updatedAt - a[1].updatedAt)
     .slice(0, 50);
-  entries.forEach(([key, val]) => {
-    const div = document.createElement('div');
-    div.className = 'answer-item';
-    div.innerHTML = `<h4>${val.rawQuestion || key}</h4><pre>${val.text.replace(/</g,'&lt;')}</pre>`;
-    ansList.appendChild(div);
-  });
+  if (entries.length === 0) {
+    ansList.innerHTML = `<div class="empty-state">No saved answers yet. Add one below!</div>`;
+  } else {
+    entries.forEach(([key, val]) => {
+      const div = document.createElement('div');
+      div.className = 'answer-item';
+      div.innerHTML = `<h4>${val.rawQuestion || key}</h4><pre>${val.text.replace(/</g,'&lt;')}</pre>`;
+      ansList.appendChild(div);
+    });
+  }
   ansSec.appendChild(ansList);
 
   const ansForm = document.createElement('div');
   ansForm.style.marginTop = '8px';
   ansForm.innerHTML = `<textarea id='jjQ' placeholder='Question (paste exact or representative)'></textarea><textarea id='jjA' placeholder='Answer'></textarea><button class='primary' id='jjSaveAns'>Save / Update Answer</button>`;
   ansSec.appendChild(ansForm);
+
+  // Test Smart Fill button
+  const testBtn = document.createElement('button');
+  testBtn.className = 'jj-test-btn';
+  testBtn.textContent = 'Test Smart Fill on Current Tab';
+  testBtn.onclick = async () => {
+    try {
+      await chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'SMART_FILL_TRIGGER' });
+          showBanner('Smart Fill triggered on current tab.', 'success');
+        } else {
+          showBanner('No active tab found.', 'error');
+        }
+      });
+    } catch (e) {
+      showBanner('Failed to trigger Smart Fill.', 'error');
+    }
+  };
+  ansSec.appendChild(testBtn);
+
   app.appendChild(ansSec);
 
   // Wire events
   document.getElementById('jjAddProf').onclick = async () => {
     const label = document.getElementById('jjNewLabel').value.trim();
-    if (!label) return;
+    if (!label) { showBanner('Profile label required.', 'error'); return; }
     profiles.push({ id: uuid(), label });
     await saveProfiles(profiles);
     await setActiveProfileId(profiles[profiles.length-1].id);
+    showBanner('Profile added.', 'success');
     init();
   };
   document.getElementById('jjSearch').oninput = (e) => {
@@ -96,12 +140,24 @@ function render(profiles, activeId, answers, state) {
   document.getElementById('jjSaveAns').onclick = async () => {
     const q = document.getElementById('jjQ').value.trim();
     const a = document.getElementById('jjA').value.trim();
-    if (!q || !a) return;
+    if (!q || !a) { showBanner('Both question and answer required.', 'error'); return; }
     await upsertAnswer(q, a, activeId);
+    showBanner('Answer saved.', 'success');
     init();
   };
 
   renderFieldEditor(profiles.find(p => p.id === activeId), profiles);
+}
+
+function showBanner(msg, type) {
+  const banner = document.getElementById('jjBanner');
+  if (!banner) return;
+  banner.textContent = msg;
+  banner.classList.add('active');
+  banner.style.background = type === 'error' ? '#fee2e2' : '#fef3c7';
+  banner.style.color = type === 'error' ? '#991b1b' : '#92400e';
+  banner.style.borderColor = type === 'error' ? '#fecaca' : '#fde68a';
+  setTimeout(() => { banner.classList.remove('active'); }, 2200);
 }
 
 function renderFieldEditor(activeProfile, allProfiles) {
