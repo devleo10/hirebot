@@ -1,68 +1,47 @@
-// Simple storage helpers using chrome.storage.local
+// shared/storage.js - Storage utilities for HireBot
 
-const KEYS = {
-  PROFILES: 'jj_profiles',
-  ACTIVE_PROFILE_ID: 'jj_active_profile_id',
-  ANSWERS: 'jj_answers' // map questionKey -> { text, profileId?, updatedAt }
-};
-
-export function getAllProfiles() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([KEYS.PROFILES], (res) => {
-      resolve(res[KEYS.PROFILES] || []);
-    });
-  });
+export async function getQAs() {
+  const result = await chrome.storage.sync.get(['interviewQAs']);
+  return result.interviewQAs || [];
 }
 
-export function saveProfiles(profiles) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ [KEYS.PROFILES]: profiles }, resolve);
-  });
+export async function saveQAs(qas) {
+  await chrome.storage.sync.set({ interviewQAs: qas });
 }
 
-export function getActiveProfileId() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([KEYS.ACTIVE_PROFILE_ID], (res) => {
-      resolve(res[KEYS.ACTIVE_PROFILE_ID] || null);
-    });
-  });
+export async function addQA(qa) {
+  const qas = await getQAs();
+  qas.push(qa);
+  await saveQAs(qas);
+  return qa;
 }
 
-export function setActiveProfileId(id) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ [KEYS.ACTIVE_PROFILE_ID]: id }, resolve);
-  });
+export async function updateQA(id, updates) {
+  const qas = await getQAs();
+  const index = qas.findIndex(qa => qa.id === id);
+  if (index >= 0) {
+    qas[index] = { ...qas[index], ...updates };
+    await saveQAs(qas);
+    return qas[index];
+  }
+  return null;
 }
 
-export async function getActiveProfile() {
-  const [profiles, activeId] = await Promise.all([getAllProfiles(), getActiveProfileId()]);
-  return profiles.find(p => p.id === activeId) || null;
+export async function deleteQA(id) {
+  const qas = await getQAs();
+  const filtered = qas.filter(qa => qa.id !== id);
+  await saveQAs(filtered);
+  return filtered;
 }
 
-export function getAllAnswers() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([KEYS.ANSWERS], (res) => {
-      resolve(res[KEYS.ANSWERS] || {});
-    });
-  });
+export async function getSettings() {
+  const result = await chrome.storage.sync.get(['autoSuggest', 'highlightFields']);
+  return {
+    autoSuggest: result.autoSuggest !== false,
+    highlightFields: result.highlightFields !== false
+  };
 }
 
-export function saveAnswers(answers) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ [KEYS.ANSWERS]: answers }, resolve);
-  });
+export async function saveSettings(settings) {
+  await chrome.storage.sync.set(settings);
 }
-
-export async function upsertAnswer(rawQuestion, text, profileId) {
-  const key = normalizeQuestion(rawQuestion);
-  const answers = await getAllAnswers();
-  answers[key] = { text, profileId: profileId || null, updatedAt: Date.now(), rawQuestion };
-  await saveAnswers(answers);
-  return answers[key];
-}
-
-export function normalizeQuestion(q) {
-  return q.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120);
-}
-
-export { KEYS };

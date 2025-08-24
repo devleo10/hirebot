@@ -1,12 +1,214 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>JobJinni</title>
-  <link rel="stylesheet" href="popup.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HireBot - Interview Assistant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 380px; min-height: 500px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #2d3748; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; text-align: center; }
+    .header h1 { font-size: 1.4em; margin-bottom: 4px; }
+    .header p { opacity: 0.9; font-size: 0.85em; }
+    .content { padding: 16px; }
+    .quick-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+    .btn { padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 500; transition: all 0.2s; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5a67d8; }
+    .btn-secondary { background: #e2e8f0; color: #4a5568; }
+    .btn-secondary:hover { background: #cbd5e0; }
+    .btn-success { background: #48bb78; color: white; }
+    .btn-success:hover { background: #38a169; }
+    .section { background: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .section h3 { color: #2d3748; margin-bottom: 12px; font-size: 1em; }
+    .form-fields { margin-bottom: 16px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 4px; font-size: 0.85em; font-weight: 500; color: #4a5568; }
+    .form-group input, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.9em; }
+    .form-group textarea { min-height: 60px; resize: vertical; }
+    .qa-item { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 8px; background: #f7fafc; }
+    .qa-question { font-weight: 600; color: #2d3748; margin-bottom: 6px; font-size: 0.9em; }
+    .qa-answer { color: #4a5568; font-size: 0.85em; line-height: 1.4; margin-bottom: 8px; }
+    .qa-actions { display: flex; gap: 6px; }
+    .btn-small { padding: 4px 8px; font-size: 0.75em; }
+    .status { text-align: center; padding: 8px; margin-bottom: 12px; border-radius: 4px; font-size: 0.85em; }
+    .status.success { background: #c6f6d5; color: #22543d; }
+    .status.error { background: #fed7d7; color: #742a2a; }
+    .detected-fields { max-height: 200px; overflow-y: auto; }
+    .field-item { padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 6px; background: white; }
+    .field-label { font-weight: 500; color: #2d3748; font-size: 0.85em; }
+    .field-actions { margin-top: 6px; }
+    .search-input { width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 12px; font-size: 0.9em; }
+    .no-results { text-align: center; color: #718096; padding: 20px; font-size: 0.9em; }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
+  <div class="header">
+    <h1>🤖 HireBot</h1>
+    <p>Interview Question Assistant</p>
+  </div>
+  
+  <div class="content">
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button class="btn btn-primary" id="scanBtn">🔍 Scan Page</button>
+      <button class="btn btn-success" id="autoFillBtn">✨ Auto-Fill</button>
+    </div>
+    
+    <!-- Status Messages -->
+    <div id="statusMsg" style="display: none;"></div>
+    
+    <!-- Detected Fields Section -->
+    <div class="section" id="detectedSection" style="display: none;">
+      <h3>🎯 Detected Questions</h3>
+      <div id="detectedFields" class="detected-fields"></div>
+    </div>
+    
+    <!-- Add Q&A Section -->
+    <div class="section">
+      <h3>➕ Quick Add Q&A</h3>
+      <div class="form-fields">
+        <div class="form-group">
+          <label for="quickQuestion">Question/Keywords</label>
+          <input type="text" id="quickQuestion" placeholder="e.g., Why do you want to work here?">
+        </div>
+        <div class="form-group">
+          <label for="quickAnswer">Your Answer</label>
+          <textarea id="quickAnswer" placeholder="Enter your prepared answer..."></textarea>
+        </div>
+        <button class="btn btn-primary" id="saveQuickQA">💾 Save</button>
+      </div>
+    </div>
+    
+    <!-- Saved Q&As Section -->
+    <div class="section">
+      <h3>📚 Your Q&As</h3>
+      <input type="text" id="searchQAs" class="search-input" placeholder="Search your Q&As...">
+      <div id="qaList">
+        <div class="no-results">No Q&As saved yet. Add one above!</div>
+      </div>
+      <button class="btn btn-secondary" id="openOptions" style="width: 100%; margin-top: 8px;">⚙️ Manage All Q&As</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+    </section>
+    
+    <!-- Quick Settings -->
+    <section class="section">
+      <h2>Quick Settings</h2>
+      <div class="settings-grid">
+        <label class="setting-item">
+          <input type="checkbox" id="autoFillEnabled" checked>
+          <span class="checkmark"></span>
+          <span class="setting-label">Enable auto-fill</span>
+        </label>
+        <label class="setting-item">
+          <input type="checkbox" id="showConfirmation" checked>
+          <span class="checkmark"></span>
+          <span class="setting-label">Show confirmation</span>
+        </label>
+        <label class="setting-item">
+          <input type="checkbox" id="highlightFields">
+          <span class="checkmark"></span>
+          <span class="setting-label">Highlight fields</span>
+        </label>
+      </div>
+    </section>
+    
+    <!-- Footer Actions -->
+    <footer class="footer">
+      <button id="optionsBtn" class="btn btn-link">
+        <span class="btn-icon">⚙️</span>
+        Options
+      </button>
+      <button id="exportBtn" class="btn btn-link">
+        <span class="btn-icon">📤</span>
+        Export
+      </button>
+      <button id="importBtn" class="btn btn-link">
+        <span class="btn-icon">📥</span>
+        Import
+      </button>
+    </footer>
+  </div>
+  
+  <!-- Add/Edit Answer Modal -->
+  <div class="modal" id="answerModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add Answer</h3>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="questionInput">Question</label>
+          <textarea id="questionInput" placeholder="Enter the interview question..." rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="answerInput">Answer</label>
+          <textarea id="answerInput" placeholder="Enter your prepared answer..." rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="tagsInput">Tags (optional)</label>
+          <input type="text" id="tagsInput" placeholder="e.g., experience, technical, behavioral">
+          <small>Separate tags with commas</small>
+        </div>
+        
+        <!-- Template Suggestions -->
+        <div class="template-suggestions" id="templateSuggestions" style="display: none;">
+          <h4>Template Suggestions</h4>
+          <div class="template-list" id="templateList">
+            <!-- Templates will be populated here -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelBtn" class="btn btn-secondary">Cancel</button>
+        <button id="saveAnswerBtn" class="btn btn-primary">Save Answer</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Template Customization Modal -->
+  <div class="modal" id="templateModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Customize Template Answer</h3>
+        <button class="modal-close" id="templateModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="template-form" id="templateForm">
+          <!-- Template form will be populated here -->
+        </div>
+        <div class="template-preview">
+          <label>Preview:</label>
+          <div class="preview-text" id="templatePreview">Preview will appear here...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="templateCancelBtn" class="btn btn-secondary">Cancel</button>
+        <button id="useTemplateBtn" class="btn btn-primary">Use Template</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Processing...</div>
+  </div>
+  
+  <!-- Success/Error Messages -->
+  <div class="toast" id="toast">
+    <div class="toast-content">
+      <span class="toast-icon" id="toastIcon">✓</span>
+      <span class="toast-message" id="toastMessage">Action completed successfully</span>
+    </div>
+  </div>
+  
   <script type="module" src="popup.js"></script>
 </body>
 </html>

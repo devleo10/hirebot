@@ -1,0 +1,22 @@
+{
+  "interview_invite": {
+    "name": "Interview Invitation",
+    "subject": "Interview Invitation - {{position}} at {{company}}",
+    "content": "Dear {{name}},\n\nThank you for your application for the {{position}} role at {{company}}. We were impressed with your background and would like to invite you for an interview.\n\nInterview Details:\n- Position: {{position}}\n- Date: {{date}}\n- Time: {{time}}\n- Format: {{format}}\n\nPlease confirm your availability by replying to this email. If the proposed time doesn't work for you, please suggest alternative times.\n\nWe look forward to speaking with you.\n\nBest regards,\n{{recruiter_name}}\n{{company}}\nHiring Team",
+    "variables": ["name", "position", "company", "date", "time", "format", "recruiter_name"]
+  },
+  
+  "rejection_email": {
+    "name": "Rejection Email",
+    "subject": "Update on your application - {{position}} at {{company}}",
+    "content": "Dear {{name}},\n\nThank you for your interest in the {{position}} role at {{company}} and for taking the time to interview with our team.\n\nAfter careful consideration, we have decided to move forward with other candidates whose experience more closely matches our current needs.\n\nWe were impressed with your background and encourage you to apply for future opportunities that align with your skills and experience.\n\nWe appreciate the time you invested in the application process and wish you success in your job search.\n\nBest regards,\n{{recruiter_name}}\n{{company}}\nHiring Team",
+    "variables": ["name", "position", "company", "recruiter_name"]
+  },
+  
+  "follow_up": {
+    "name": "Follow-up Email",
+    "subject": "Following up on your {{position}} application",
+    "content": "Dear {{name}},\n\nI hope this email finds you well. I wanted to follow up on your application for the {{position}} role at {{company}}.\n\nWe have received your application and are currently reviewing all candidates. Our hiring process typically takes {{timeline}}, and we will be in touch with next steps soon.\n\nIn the meantime, please don't hesitate to reach out if you have any questions about the role or our company.\n\nThank you for your patience and continued interest in joining our team.\n\nBest regards,\n{{recruiter_name}}\n{{company}}\nHiring Team",
+    "variables": ["name", "position", "company", "timeline", "recruiter_name"]
+  }
+}

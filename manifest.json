@@ -1,48 +1,46 @@
 {
   "manifest_version": 3,
-  "name": "JobJinni – Smart Autofill for Job Seekers",
-  "description": "Auto-fill job application forms & inject saved interview answers across job platforms.",
-  "version": "0.1.0",
-  "options_page": "options/options.html",
-  "action": {
-    "default_title": "JobJinni",
-    "default_popup": "popup/popup.html"
+  "name": "HireBot – Interview Assistant",
+  "description": "Auto-fill common interview questions and save your answers for faster job applications.",
+  "version": "1.0.0",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
-  "permissions": [
-  "storage",
-  "scripting",
-  "activeTab",
-  "contextMenus"
-  ],
-  "host_permissions": [
-    "*://*.linkedin.com/*",
-    "*://*.naukri.com/*",
-    "*://*.internshala.com/*",
-    "*://*.wellfound.com/*",
-    "*://*.indeed.com/*"
-  ],
-  "commands": {
-    "trigger-smart-fill": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+J"
-      },
-      "description": "Trigger JobJinni Smart Fill"
-    }
+  "action": {
+    "default_title": "HireBot",
+    "default_popup": "popup/popup.html"
   },
   "background": {
     "service_worker": "background/background.js",
     "type": "module"
   },
+  "options_page": "options/options.html",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "content_scripts": [
     {
       "matches": [
-        "*://*.linkedin.com/*",
-        "*://*.naukri.com/*",
-        "*://*.internshala.com/*",
-        "*://*.wellfound.com/*",
-        "*://*.indeed.com/*"
+        "<all_urls>"
       ],
-      "js": ["content/content.js"],
+      "js": [
+        "shared/utils.js",
+        "shared/messaging.js",
+        "shared/storage.js",
+        "shared/selectors.js",
+        "content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

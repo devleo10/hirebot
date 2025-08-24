@@ -1,176 +1,297 @@
-import { getActiveProfile, getAllAnswers, normalizeQuestion } from '../shared/storage.js';
+// content/content.js - HireBot Content Script for Form Detection and Auto-fill
 
-const FIELD_MAPPINGS = [
-  { keys: ['first name', 'firstname', 'given-name', 'given name'], profileKey: 'firstName' },
-  { keys: ['last name', 'lastname', 'surname', 'family-name'], profileKey: 'lastName' },
-  { keys: ['full name', 'name'], profileKey: 'fullName' },
-  { keys: ['email', 'e-mail'], profileKey: 'email' },
-  { keys: ['phone', 'mobile'], profileKey: 'phone' },
-  { keys: ['college', 'university', 'school'], profileKey: 'college' },
-  { keys: ['github', 'git hub'], profileKey: 'github' },
-  { keys: ['portfolio', 'website', 'site', 'personal site'], profileKey: 'portfolio' },
-  { keys: ['linkedin'], profileKey: 'linkedin' },
-  { keys: ['skills', 'tech stack'], profileKey: 'skills' },
-  { keys: ['location', 'city'], profileKey: 'location' }
-];
+let isInitialized = false;
+let settings = { autoSuggest: true, highlightFields: true };
 
-async function smartFill() {
-  const profile = await getActiveProfile();
-  if (!profile) {
-    console.info('[JobJinni] No active profile');
-    return;
+// Initialize content script
+if (!isInitialized) {
+  initialize();
+  isInitialized = true;
+}
+
+async function initialize() {
+  try {
+    // Load settings
+    const result = await chrome.storage.sync.get(['autoSuggest', 'highlightFields']);
+    settings = {
+      autoSuggest: result.autoSuggest !== false,
+      highlightFields: result.highlightFields !== false
+    };
+    
+    // Set up message listeners
+    chrome.runtime.onMessage.addListener(handleMessage);
+    
+    // Highlight fields if enabled
+    if (settings.highlightFields) {
+      highlightFormFields();
+    }
+    
+    console.log('HireBot content script initialized');
+  } catch (error) {
+    console.error('HireBot initialization error:', error);
   }
-  fillBasicInputs(profile);
-  await fillQuestions(profile);
 }
 
-function fieldScore(fieldLabel, keys) {
-  const l = fieldLabel.toLowerCase();
-  return keys.some(k => l.includes(k)) ? 1 : 0;
+function handleMessage(message, sender, sendResponse) {
+  switch (message.type) {
+    case 'EXTRACT_QUESTIONS':
+      sendResponse(extractQuestions());
+      break;
+    case 'FILL_FIELD':
+      fillField(message.selector, message.value);
+      sendResponse({ success: true });
+      break;
+    case 'HIGHLIGHT_FIELDS':
+      highlightFormFields();
+      sendResponse({ success: true });
+      break;
+    default:
+      return false;
+  }
+  return true;
 }
 
-function fillBasicInputs(profile) {
-  const inputs = Array.from(document.querySelectorAll('input, textarea'));
+function extractQuestions() {
+  const fields = [];
+  const inputs = [...document.querySelectorAll('input, textarea')].filter(el => {
+    return el.offsetParent !== null && 
+           el.type !== 'hidden' && 
+           el.type !== 'submit' && 
+           el.type !== 'button' &&
+           el.type !== 'checkbox' &&
+           el.type !== 'radio';
+  });
+  
   inputs.forEach(el => {
-    if (el.matches('[type=password],[type=hidden],[type=checkbox],[type=radio]')) return;
-    const labelText = getLabelText(el) || el.getAttribute('placeholder') || '';
-    if (!labelText) return;
-    const mapping = FIELD_MAPPINGS.find(m => fieldScore(labelText, m.keys));
-    if (!mapping) return;
-    const value = profile[mapping.profileKey];
-    if (value && !el.value) {
-      setValue(el, value);
+    let label = extractFieldLabel(el);
+    
+    if (label && label.length > 0) {
+      fields.push({
+        selector: getUniqueSelector(el),
+        label: label.substring(0, 200),
+        tag: el.tagName.toLowerCase(),
+        type: el.getAttribute('type') || '',
+        placeholder: el.placeholder || '',
+        value: el.value || ''
+      });
     }
   });
+  
+  return fields;
 }
 
-function setValue(el, value) {
-  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(el.__proto__, 'value')?.set;
-  nativeInputValueSetter?.call(el, value);
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function getLabelText(el) {
-  const id = el.id;
-  if (id) {
-    const label = document.querySelector(`label[for="${id}"]`);
-    if (label) return label.innerText.trim();
+function extractFieldLabel(el) {
+  let label = '';
+  
+  // Try placeholder first
+  if (el.placeholder && el.placeholder.length > 5) {
+    label = el.placeholder;
   }
-  let cur = el.parentElement;
-  for (let i = 0; i < 2 && cur; i++) {
-    const label = cur.querySelector('label');
-    if (label) return label.innerText.trim();
-    cur = cur.parentElement;
+  
+  // Try associated label
+  if (!label && el.id) {
+    const lbl = document.querySelector(`label[for='${el.id}']`);
+    if (lbl) label = lbl.textContent.trim();
   }
-  return '';
-}
-
-const SIMILARITY_THRESHOLD = 0.6; // lowered for better fuzzy capture
-let JJ_DEBUG = false; // toggle via window.JOBJINNI_DEBUG = true in console
-
-function extractQuestionText(area) {
-  // Priority: explicit label, aria-label, placeholder, nearby heading/text
-  const direct = getLabelText(area) || area.getAttribute('aria-label') || area.getAttribute('placeholder');
-  if (direct) return direct;
-  // Look for preceding sibling text elements (p, div, label, span with length)
-  const container = area.parentElement;
-  if (container) {
-    // Collect up to a couple of text candidates
-    const candidates = [];
-    let prev = area.previousElementSibling;
-    let hops = 0;
-    while (prev && hops < 3) {
-      const txt = (prev.innerText || '').trim();
-      if (txt.split(/\s+/).length >= 3) candidates.push(txt);
-      prev = prev.previousElementSibling;
-      hops++;
+  
+  // Try parent label
+  if (!label && el.closest('label')) {
+    const parentLabel = el.closest('label');
+    label = parentLabel.textContent.replace(el.value || '', '').trim();
+  }
+  
+  // Try preceding elements
+  if (!label) {
+    const prev = el.previousElementSibling;
+    if (prev) {
+      if (prev.tagName === 'LABEL') {
+        label = prev.textContent.trim();
+      } else if (prev.textContent && prev.textContent.trim().length < 100) {
+        label = prev.textContent.trim();
+      }
     }
-    if (candidates.length) return candidates[0];
   }
-  return '';
+  
+  // Try aria-label
+  if (!label && el.getAttribute('aria-label')) {
+    label = el.getAttribute('aria-label');
+  }
+  
+  // Try parent container text
+  if (!label) {
+    const parent = el.parentElement;
+    if (parent) {
+      const textNodes = Array.from(parent.childNodes)
+        .filter(node => node.nodeType === Node.TEXT_NODE)
+        .map(node => node.textContent.trim())
+        .filter(text => text.length > 0 && text.length < 100);
+      
+      if (textNodes.length > 0) {
+        label = textNodes[0];
+      }
+    }
+  }
+  
+  // Clean up label
+  if (label) {
+    label = label.replace(/[*:]+$/g, '').trim();
+    if (label.length < 3) label = '';
+  }
+  
+  return label;
 }
 
-async function fillQuestions(profile) {
-  const answers = await getAllAnswers();
-  const textareas = Array.from(document.querySelectorAll('textarea'));
-  textareas.forEach(area => {
-    const label = extractQuestionText(area);
-    if (!label) return;
-    const norm = normalizeQuestion(label);
-    let bestKey = null;
-    let bestScore = 0;
-    Object.keys(answers).forEach(key => {
-      const ans = answers[key];
-      if (!ans || !ans.text) return; // skip empty template placeholders
-      // Fast exact / substring checks first
-      if (key === norm) {
-        bestKey = key; bestScore = 1; return;
-      }
-      if (norm.includes(key) || key.includes(norm)) {
-        const heuristic = key.length / norm.length > 0.5 ? 0.95 : 0.7;
-        if (heuristic > bestScore) { bestScore = heuristic; bestKey = key; }
-        return;
-      }
-      const score = similarity(norm, key);
-      if (score >= SIMILARITY_THRESHOLD && score > bestScore) {
-        bestScore = score;
-        bestKey = key;
-      }
+function getUniqueSelector(el) {
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  
+  if (el.name) {
+    const nameSelector = `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
+    if (document.querySelectorAll(nameSelector).length === 1) {
+      return nameSelector;
+    }
+  }
+  
+  const parts = [];
+  let node = el;
+  while (node && node.nodeType === 1 && parts.length < 6) {
+    let sel = node.nodeName.toLowerCase();
+    
+    if (node.classList.length) {
+      const classes = [...node.classList].slice(0, 2).map(c => CSS.escape(c));
+      sel += '.' + classes.join('.');
+    }
+    
+    const siblings = [...(node.parentNode?.children || [])].filter(n => n.nodeName === node.nodeName);
+    const idx = siblings.indexOf(node);
+    if (idx >= 0 && siblings.length > 1) {
+      sel += `:nth-of-type(${idx + 1})`;
+    }
+    
+    parts.unshift(sel);
+    node = node.parentElement;
+    
+    // Stop at form or body
+    if (node && (node.tagName === 'FORM' || node.tagName === 'BODY')) break;
+  }
+  
+  return parts.join(' > ');
+}
+
+function fillField(selector, value) {
+  try {
+    const element = document.querySelector(selector);
+    if (!element) {
+      console.warn('Element not found:', selector);
+      return false;
+    }
+    
+    // Focus the element
+    element.focus();
+    
+    // Clear existing value
+    element.value = '';
+    
+    // Set new value
+    element.value = value;
+    
+    // Trigger events to notify frameworks
+    const events = ['input', 'change', 'blur'];
+    events.forEach(eventType => {
+      const event = new Event(eventType, { bubbles: true, cancelable: true });
+      element.dispatchEvent(event);
     });
-    if (bestKey) {
-      const ans = answers[bestKey];
-      if (!ans.profileId || ans.profileId === profile.id) {
-        if (!area.value) {
-          setValue(area, ans.text);
-          injectBadge(area, 'JobJinni ✓');
-          JJ_DEBUG && console.log('[JobJinni] Filled textarea', { label, norm, matchedKey: bestKey, score: bestScore });
-        } else {
-          JJ_DEBUG && console.log('[JobJinni] Skipped (already has value)', { label });
-        }
+    
+    // Special handling for React/Vue
+    if (element._valueTracker) {
+      element._valueTracker.setValue('');
+    }
+    
+    // Highlight the filled field briefly
+    const originalBg = element.style.backgroundColor;
+    element.style.backgroundColor = '#c6f6d5';
+    element.style.transition = 'background-color 0.3s ease';
+    
+    setTimeout(() => {
+      element.style.backgroundColor = originalBg;
+    }, 1500);
+    
+    console.log('Field filled:', selector, value.substring(0, 50) + '...');
+    return true;
+  } catch (error) {
+    console.error('Error filling field:', error);
+    return false;
+  }
+}
+
+function highlightFormFields() {
+  if (!settings.highlightFields) return;
+  
+  const fields = extractQuestions();
+  
+  fields.forEach(field => {
+    try {
+      const element = document.querySelector(field.selector);
+      if (element && !element.dataset.hirebotHighlighted) {
+        element.dataset.hirebotHighlighted = 'true';
+        element.style.boxShadow = '0 0 0 2px #667eea40';
+        element.style.transition = 'box-shadow 0.3s ease';
+        
+        // Add tooltip on hover
+        element.title = `HireBot: ${field.label}`;
+        
+        // Remove highlight on focus
+        element.addEventListener('focus', () => {
+          element.style.boxShadow = '';
+        }, { once: true });
       }
-    } else {
-      JJ_DEBUG && console.log('[JobJinni] No match for', { label, norm });
+    } catch (error) {
+      console.warn('Error highlighting field:', error);
     }
   });
 }
 
-function similarity(a, b) {
-  if (a === b) return 1;
-  const setA = new Set(a.split(' '));
-  const setB = new Set(b.split(' '));
-  const inter = [...setA].filter(x => setB.has(x)).length;
-  const union = new Set([...setA, ...setB]).size;
-  return inter / union;
-}
-
-function injectBadge(el, text) {
-  if (el.dataset.jjBadge) return;
-  const badge = document.createElement('span');
-  badge.textContent = text;
-  badge.style.position = 'absolute';
-  badge.style.right = '4px';
-  badge.style.top = '4px';
-  badge.style.background = '#2563eb';
-  badge.style.color = '#fff';
-  badge.style.fontSize = '10px';
-  badge.style.padding = '2px 4px';
-  badge.style.borderRadius = '3px';
-  badge.style.fontFamily = 'system-ui, sans-serif';
-  badge.style.zIndex = '999999';
-  badge.style.pointerEvents = 'none';
-  badge.style.boxShadow = '0 1px 2px rgba(0,0,0,0.15)';
-  el.style.position = 'relative';
-  el.parentElement?.style.position || (el.parentElement.style.position = 'relative');
-  el.parentElement?.appendChild(badge);
-  el.dataset.jjBadge = '1';
-}
-
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === 'SMART_FILL_TRIGGER') {
-    smartFill();
+// Auto-detect and highlight fields when page changes
+const observer = new MutationObserver((mutations) => {
+  let shouldRehighlight = false;
+  
+  mutations.forEach((mutation) => {
+    if (mutation.type === 'childList') {
+      const addedNodes = Array.from(mutation.addedNodes);
+      const hasFormElements = addedNodes.some(node => 
+        node.nodeType === 1 && (
+          node.matches && node.matches('input, textarea, form') ||
+          node.querySelector && node.querySelector('input, textarea')
+        )
+      );
+      
+      if (hasFormElements) {
+        shouldRehighlight = true;
+      }
+    }
+  });
+  
+  if (shouldRehighlight && settings.highlightFields) {
+    setTimeout(highlightFormFields, 500);
   }
 });
 
-// Auto run once after load (debounced)
-setTimeout(smartFill, 1500);
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Listen for storage changes
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.autoSuggest || changes.highlightFields) {
+    chrome.storage.sync.get(['autoSuggest', 'highlightFields'], (result) => {
+      settings = {
+        autoSuggest: result.autoSuggest !== false,
+        highlightFields: result.highlightFields !== false
+      };
+      
+      if (settings.highlightFields) {
+        highlightFormFields();
+      }
+    });
+  }
+});
