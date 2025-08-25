@@ -29,6 +29,12 @@
     "http://*/*",
     "https://*/*"
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["templates/*.json"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_scripts": [
     {
       "matches": [

@@ -69,32 +69,36 @@ async function setupContextMenus() {
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  switch (info.menuItemId) {
-    case 'hirebot-save-answer':
-      if (info.selectionText) {
-        // Open popup with selected text
-        chrome.action.openPopup();
-        // Store selected text for popup to pick up
-        await chrome.storage.session.set({ 
-          selectedText: info.selectionText,
-          fromContextMenu: true 
-        });
-      }
-      break;
-      
-    case 'hirebot-scan-page':
-      // Inject content script and scan
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content/content.js']
-        });
+  try {
+    switch (info.menuItemId) {
+      case 'hirebot-save-answer':
+        if (info.selectionText) {
+          // Store selected text for popup to pick up
+          await chrome.storage.session.set({ 
+            selectedText: info.selectionText,
+            fromContextMenu: true 
+          });
+          
+          // Try to open popup, but handle case where it might fail
+          try {
+            await chrome.action.openPopup();
+          } catch (popupError) {
+            console.log('Could not open popup directly. User can click the extension icon to access saved text.');
+          }
+        }
+        break;
         
-        chrome.tabs.sendMessage(tab.id, { type: 'HIGHLIGHT_FIELDS' });
-      } catch (error) {
-        console.error('Error scanning page:', error);
-      }
-      break;
+      case 'hirebot-scan-page':
+        if (!tab?.id) {
+          console.error('No active tab found for scanning');
+          return;
+        }
+        
+        await handleScanCurrentTab(tab.id);
+        break;
+    }
+  } catch (error) {
+    console.error('Error in context menu handler:', error);
   }
 });
 
@@ -147,35 +151,29 @@ async function handleScanCurrentTab(tabId) {
     return response || [];
   } catch (error) {
     console.error('Error scanning tab:', error);
-    throw error;
   }
 }
 
 // Handle tab updates
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
+  if (changeInfo.status === 'complete' && tab?.url) {
     // Auto-inject content script on job/career sites
     const jobSites = [
-      'linkedin.com',
+      'wellfound.com',
+      'linkedin.com/jobs',
       'indeed.com',
       'glassdoor.com',
-      'monster.com',
-      'ziprecruiter.com',
-      'careerbuilder.com',
-      'dice.com',
-      'stackoverflow.com/jobs',
-      'github.com/jobs',
-      'angel.co',
-      'wellfound.com'
+      'greenhouse.io',
+      'lever.co',
+      'jobs.ashbyhq.com',
+      'apply.workable.com'
     ];
     
-    const isJobSite = jobSites.some(site => tab.url.includes(site));
+    const isJobSite = jobSites.some(site => tab.url.includes(site)) || 
+                     /(careers|jobs|apply)/i.test(tab.url);
     
     if (isJobSite) {
-      chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['content/content.js']
-      }).catch(error => {
+      handleScanCurrentTab(tabId).catch(error => {
         console.log('Content script already injected or error:', error.message);
       });
     }

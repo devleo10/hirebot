@@ -3,6 +3,24 @@
 let isInitialized = false;
 let settings = { autoSuggest: true, highlightFields: true };
 
+// Import shared selectors
+let { extractQuestions: extractQuestionsFromPage, uniqueSelector } = (() => {
+  try {
+    // Try to use shared module if available
+    if (typeof window.extractQuestions === 'function') {
+      return { extractQuestions: window.extractQuestions, uniqueSelector: window.uniqueSelector };
+    }
+  } catch (e) {
+    console.warn('Could not load shared selectors, using fallback', e);
+  }
+  
+  // Fallback implementation if shared module not available
+  return {
+    extractQuestions: extractQuestionsFallback,
+    uniqueSelector: uniqueSelectorFallback
+  };
+})();
+
 // Initialize content script
 if (!isInitialized) {
   initialize();
@@ -23,13 +41,75 @@ async function initialize() {
     
     // Highlight fields if enabled
     if (settings.highlightFields) {
-      highlightFormFields();
+      await highlightFormFields();
     }
     
     console.log('HireBot content script initialized');
   } catch (error) {
     console.error('HireBot initialization error:', error);
   }
+}
+
+// Fallback implementation if shared module not available
+function extractQuestionsFallback() {
+  const fields = [];
+  const inputs = [...document.querySelectorAll('input, textarea')].filter(el => {
+    return el.offsetParent !== null && 
+           el.type !== 'hidden' && 
+           el.type !== 'submit' && 
+           el.type !== 'button';
+  });
+  
+  inputs.forEach(el => {
+    const field = {
+      selector: uniqueSelector(el),
+      label: extractFieldLabel(el),
+      tag: el.tagName.toLowerCase(),
+      type: el.getAttribute('type') || '',
+      placeholder: el.placeholder || '',
+      value: el.value || ''
+    };
+    
+    if (field.label) {
+      fields.push(field);
+    }
+  });
+  
+  return fields;
+}
+
+function uniqueSelectorFallback(el) {
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  
+  const parts = [];
+  let node = el;
+  
+  while (node && node.nodeType === 1 && parts.length < 5) {
+    let sel = node.nodeName.toLowerCase();
+    if (node.classList.length) {
+      sel += '.' + [...node.classList].slice(0, 2)
+        .map(c => CSS.escape(c))
+        .filter(c => c.length > 0)
+        .join('.');
+    }
+    
+    // Add :nth-child if needed
+    if (node.parentElement) {
+      const siblings = Array.from(node.parentElement.children)
+        .filter(n => n.nodeName === node.nodeName);
+      if (siblings.length > 1) {
+        const idx = siblings.indexOf(node);
+        if (idx >= 0) {
+          sel += `:nth-child(${idx + 1})`;
+        }
+      }
+    }
+    
+    parts.unshift(sel);
+    node = node.parentElement;
+  }
+  
+  return parts.join(' > ');
 }
 
 function handleMessage(message, sender, sendResponse) {
@@ -51,33 +131,14 @@ function handleMessage(message, sender, sendResponse) {
   return true;
 }
 
+// Use the shared extractQuestions function or fallback
 function extractQuestions() {
-  const fields = [];
-  const inputs = [...document.querySelectorAll('input, textarea')].filter(el => {
-    return el.offsetParent !== null && 
-           el.type !== 'hidden' && 
-           el.type !== 'submit' && 
-           el.type !== 'button' &&
-           el.type !== 'checkbox' &&
-           el.type !== 'radio';
-  });
-  
-  inputs.forEach(el => {
-    let label = extractFieldLabel(el);
-    
-    if (label && label.length > 0) {
-      fields.push({
-        selector: getUniqueSelector(el),
-        label: label.substring(0, 200),
-        tag: el.tagName.toLowerCase(),
-        type: el.getAttribute('type') || '',
-        placeholder: el.placeholder || '',
-        value: el.value || ''
-      });
-    }
-  });
-  
-  return fields;
+  try {
+    return extractQuestionsFromPage();
+  } catch (error) {
+    console.error('Error extracting questions:', error);
+    return [];
+  }
 }
 
 function extractFieldLabel(el) {
