@@ -123,40 +123,111 @@ async function scanCurrentPage() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    // Check if this is a chrome:// or extension page
+    // Check if this is a restricted page
     if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('moz-extension://')) {
       showStatus('Cannot scan browser internal pages. Please navigate to a regular website.', 'error');
-      document.getElementById('detectedSection').style.display = 'none';
       return;
     }
     
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      function: extractQuestions
-    });
+    // Inject content script and extract questions
+    let results;
+    try {
+      results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        function: extractQuestionsFromPage
+      });
+    } catch (injectionError) {
+      console.error('Script injection failed:', injectionError);
+      showStatus('Failed to scan page. The page might have security restrictions or be loading.', 'error');
+      return;
+    }
     
-    detectedFields = results[0].result || [];
-    renderDetectedFields();
-    
-    if (detectedFields.length > 0) {
-      showStatus(`Found ${detectedFields.length} form fields!`, 'success');
-      document.getElementById('detectedSection').style.display = 'block';
+    if (results && results[0] && results[0].result) {
+      detectedFields = results[0].result;
+      console.log('Detected fields:', detectedFields); // Debug logging
+      
+      if (detectedFields.length === 0) {
+        showStatus('No interview-style questions found on this page. This might be because the page has only filters, controls, or basic form fields.', 'warning');
+        document.getElementById('detectedFields').innerHTML = '<div class="no-results">No interview questions detected</div>';
+        return;
+      }
+      
+      // Additional client-side filtering for extra safety
+      const filteredFields = detectedFields.filter(field => {
+        return field.label && field.label.length > 10 && isLikelyInterviewQuestion(field.label);
+      });
+      
+      console.log('Filtered fields:', filteredFields); // Debug logging
+      detectedFields = filteredFields;
+      
+      if (detectedFields.length === 0) {
+        showStatus('Found form fields but none appear to be interview questions. Found filters, controls, or basic inputs only.', 'warning');
+        document.getElementById('detectedFields').innerHTML = '<div class="no-results">No interview questions detected (found only filters/controls)</div>';
+        return;
+      }
+      
+      renderDetectedFields();
+      showStatus(`Found ${detectedFields.length} interview question(s)`, 'success');
     } else {
-      showStatus('No form fields detected on this page', 'info');
-      document.getElementById('detectedSection').style.display = 'none';
+      showStatus('No form fields detected on this page', 'warning');
+      document.getElementById('detectedFields').innerHTML = '<div class="no-results">No form fields found</div>';
     }
   } catch (error) {
-    console.error('Scan error:', error);
-    if (error.message.includes('Cannot access a chrome')) {
-      showStatus('Cannot scan browser internal pages. Please navigate to a regular website.', 'error');
+    console.error('Error scanning page:', error);
+    if (error.message.includes('Cannot access') || error.message.includes('Extension context invalidated')) {
+      showStatus('Cannot access this page. Try navigating to a regular website first.', 'error');
+    } else if (error.message.includes('extractQuestionsFromPage is not defined')) {
+      showStatus('Extension script error. Please refresh the page and try again.', 'error');
     } else {
-      showStatus('Error scanning page', 'error');
+      showStatus('Error scanning page: ' + error.message, 'error');
     }
-    document.getElementById('detectedSection').style.display = 'none';
   }
 }
 
-function extractQuestions() {
+// Helper function to validate interview questions (also used in content script)
+function isLikelyInterviewQuestion(label) {
+  if (!label || label.length < 10) return false;
+  
+  // Common filter/control patterns to exclude
+  const excludePatterns = [
+    /^(salary|pay|wage|income|amount|price|cost|fee|budget|rate)\s*(from|to|min|max|minimum|maximum|range|between)?$/i,
+    /^(location|city|state|country|zip|postal|address|area|region|distance)$/i,
+    /^(company|organization|employer|industry|department|role|position|title|level)$/i,
+    /^(experience|years?|months?|duration|period|time|since|until|from|to)$/i,
+    /^(skills?|technology|technologies|language|languages|tool|tools|software)$/i,
+    /^(education|degree|qualification|certification|course|school|university)$/i,
+    /^(filter|sort|search|select|choose|pick|option|dropdown|checkbox|radio)$/i,
+    /^(apply|submit|send|save|cancel|reset|clear|delete|remove|edit|update)$/i,
+    /^(name|email|phone|contact|profile|account|login|password|username)$/i,
+    /^\d+(\s*(k|thousand|million|m|yr|year|month|mo|day|hour|hr|min|sec))?$/i,
+    /^(yes|no|true|false|on|off|enabled|disabled|active|inactive)$/i
+  ];
+  
+  // Check if text matches exclude patterns
+  if (excludePatterns.some(pattern => pattern.test(label.trim()))) {
+    return false;
+  }
+  
+  // Check for specific interview question patterns
+  const interviewPatterns = [
+    /\b(tell\s+(me|us)\s+about|describe\s+your|explain\s+your)\b/i,
+    /\b(why\s+(do\s+)?you\s+(want|chose|decided|like|think))\b/i,
+    /\b(what\s+(is\s+your|are\s+your|motivates|drives|interests))\b/i,
+    /\b(how\s+(do\s+you|would\s+you|did\s+you))\b/i,
+    /\b(where\s+do\s+you\s+see\s+yourself)\b/i,
+    /\b(strength|weakness|challenge|goal|achievement|accomplishment)\b/i,
+    /\b(experience\s+(with|in)|background\s+in)\b/i,
+    /\b(handle\s+(conflict|pressure|stress|difficult))\b/i,
+    /\b(work\s+(style|environment|team|alone))\b/i,
+    /\b(cover\s+letter|personal\s+statement|essay|response)\b/i,
+    /\b(motivation|passion|interest|career|future|yourself)\b/i,
+    /\?(.*)?$/  // Ends with question mark
+  ];
+  
+  return interviewPatterns.some(pattern => pattern.test(label));
+}
+
+function extractQuestionsFromPage() {
   // This function runs in the page context
   const fields = [];
   const inputs = [...document.querySelectorAll('input, textarea, [contenteditable="true"]')].filter(el => {
@@ -166,9 +237,87 @@ function extractQuestions() {
            el.type !== 'button' &&
            el.type !== 'image' &&
            el.type !== 'file' &&
+           el.type !== 'checkbox' &&
+           el.type !== 'radio' &&
+           el.type !== 'range' &&
+           el.type !== 'number' &&
+           el.type !== 'date' &&
+           el.type !== 'time' &&
+           el.type !== 'color' &&
+           el.type !== 'search' &&
            !el.disabled &&
            !el.readOnly;
   });
+
+  // Helper function to validate if text looks like an interview question
+  function isLikelyQuestionText(text) {
+    if (!text || text.length < 10) return false;
+    
+    // Common filter/control patterns to exclude
+    const excludePatterns = [
+      /^(salary|pay|wage|income|amount|price|cost|fee|budget|rate)\s*(from|to|min|max|minimum|maximum|range|between)?$/i,
+      /^(location|city|state|country|zip|postal|address|area|region|distance)$/i,
+      /^(company|organization|employer|industry|department|role|position|title|level)$/i,
+      /^(experience|years?|months?|duration|period|time|since|until|from|to)$/i,
+      /^(skills?|technology|technologies|language|languages|tool|tools|software)$/i,
+      /^(education|degree|qualification|certification|course|school|university)$/i,
+      /^(filter|sort|search|select|choose|pick|option|dropdown|checkbox|radio)$/i,
+      /^(apply|submit|send|save|cancel|reset|clear|delete|remove|edit|update)$/i,
+      /^(name|email|phone|contact|profile|account|login|password|username)$/i,
+      /^\d+(\s*(k|thousand|million|m|yr|year|month|mo|day|hour|hr|min|sec))?$/i,
+      /^(yes|no|true|false|on|off|enabled|disabled|active|inactive)$/i,
+      /^(all|any|none|other|others|various|multiple|single|one|two|three)$/i
+    ];
+    
+    // Check if text matches exclude patterns
+    if (excludePatterns.some(pattern => pattern.test(text.trim()))) {
+      return false;
+    }
+    
+    // Positive indicators for interview questions
+    const questionIndicators = [
+      /\b(tell|describe|explain|why|how|what|when|where|which|would|could|should|do|did|have|has|are|is|will|can)\b/i,
+      /\b(experience|background|strength|weakness|challenge|goal|motivation|passion|interest)\b/i,
+      /\b(team|project|problem|solution|achievement|accomplishment|success|failure|learn|grow)\b/i,
+      /\b(yourself|career|future|past|previous|current|ideal|preferred|favorite|best|worst)\b/i,
+      /\?(.*)?$/,  // Ends with question mark
+      /\b(interview|question|answer|response|comment|feedback|opinion|thought|view)\b/i
+    ];
+    
+    // Must have at least one question indicator
+    return questionIndicators.some(pattern => pattern.test(text));
+  }
+
+  // Helper function to check if element looks like interview question
+  function isLikelyInterviewQuestion(label, element) {
+    if (!label || label.length < 10) return false;
+    
+    // Check element characteristics
+    const isTextarea = element.tagName.toLowerCase() === 'textarea';
+    const isLongInput = element.type === 'text' && (element.maxLength > 100 || !element.maxLength);
+    
+    // Textareas are more likely to be for detailed answers
+    if (isTextarea) return true;
+    
+    // Long text inputs might be for questions
+    if (isLongInput && isLikelyQuestionText(label)) return true;
+    
+    // Check for specific interview question patterns
+    const interviewPatterns = [
+      /\b(tell\s+(me|us)\s+about|describe\s+your|explain\s+your)\b/i,
+      /\b(why\s+(do\s+)?you\s+(want|chose|decided|like|think))\b/i,
+      /\b(what\s+(is\s+your|are\s+your|motivates|drives|interests))\b/i,
+      /\b(how\s+(do\s+you|would\s+you|did\s+you))\b/i,
+      /\b(where\s+do\s+you\s+see\s+yourself)\b/i,
+      /\b(strength|weakness|challenge|goal|achievement|accomplishment)\b/i,
+      /\b(experience\s+(with|in)|background\s+in)\b/i,
+      /\b(handle\s+(conflict|pressure|stress|difficult))\b/i,
+      /\b(work\s+(style|environment|team|alone))\b/i,
+      /\b(cover\s+letter|personal\s+statement|essay|response)\b/i
+    ];
+    
+    return interviewPatterns.some(pattern => pattern.test(label));
+  }
   
   inputs.forEach(el => {
     let label = '';
@@ -219,7 +368,8 @@ function extractQuestions() {
       label = label.replace(/[*:]+$/, '').trim(); // Remove trailing asterisks and colons
       label = label.substring(0, 200); // Limit length
       
-      if (label.length > 3) { // Only add meaningful labels
+      // Only add if it looks like an interview question
+      if (label.length > 3 && isLikelyInterviewQuestion(label, el)) {
         fields.push({
           selector: getUniqueSelector(el),
           label: label,
@@ -252,6 +402,7 @@ function extractQuestions() {
     return parts.join(' > ');
   }
   
+  console.log(`HireBot: Found ${fields.length} potential interview questions`);
   return fields;
 }
 
@@ -259,23 +410,37 @@ function renderDetectedFields() {
   const container = document.getElementById('detectedFields');
   
   if (detectedFields.length === 0) {
-    container.innerHTML = '<div class="no-results">No form fields detected</div>';
+    container.innerHTML = '<div class="no-results">No interview questions detected</div>';
     return;
   }
   
   container.innerHTML = detectedFields.map((field, index) => {
     const matchingQA = findMatchingQA(field.label);
+    const hasMatch = matchingQA !== null;
+    
     return `
-      <div class="field-item">
-        <div class="field-label">${escapeHtml(field.label)}</div>
+      <div class="field-item ${hasMatch ? 'has-match' : 'no-match'}">
+        <div class="field-header">
+          <div class="field-label">${escapeHtml(field.label)}</div>
+          <span class="match-indicator ${hasMatch ? 'match-found' : 'no-match-found'}">
+            ${hasMatch ? '✓' : '✗'}
+          </span>
+        </div>
+        <div class="field-details">
+          <span class="field-type">${field.tag}${field.type ? `[${field.type}]` : ''}</span>
+          ${hasMatch ? `<div class="matched-question">→ "${matchingQA.question}"</div>` : ''}
+        </div>
         <div class="field-actions">
-          ${matchingQA ? `
+          ${hasMatch ? `
             <button class="btn btn-small btn-success field-fill-btn" data-selector="${escapeHtml(field.selector)}" data-answer="${escapeHtml(matchingQA.answer)}">
-              ✨ Fill: "${matchingQA.question.substring(0, 30)}..."
+              Fill Field
+            </button>
+            <button class="btn btn-small btn-outline preview-btn" data-question="${escapeHtml(matchingQA.question)}" data-answer="${escapeHtml(matchingQA.answer)}">
+              Preview
             </button>
           ` : `
             <button class="btn btn-small btn-secondary field-suggest-btn" data-label="${escapeHtml(field.label)}">
-              ➕ Save Answer
+              Add Q&A
             </button>
           `}
         </div>
@@ -285,10 +450,19 @@ function renderDetectedFields() {
   
   // Add event listeners for the buttons
   container.querySelectorAll('.field-fill-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const selector = btn.getAttribute('data-selector');
       const answer = unescapeHtml(btn.getAttribute('data-answer'));
-      fillField(selector, answer);
+      await fillField(selector, answer);
+      showStatus('Field filled successfully!', 'success');
+    });
+  });
+  
+  container.querySelectorAll('.preview-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const question = unescapeHtml(btn.getAttribute('data-question'));
+      const answer = unescapeHtml(btn.getAttribute('data-answer'));
+      showPreviewModal(question, answer);
     });
   });
   
@@ -307,54 +481,97 @@ function findMatchingQA(fieldLabel) {
   const candidates = currentQAs.map(qa => ({
     qa,
     score: calculateMatchScore(label, qa.question.toLowerCase(), qa.tags || [])
-  })).filter(item => item.score > 0.3); // Minimum threshold
+  })).filter(item => item.score > 0.2); // Lowered threshold for better matching
   
   // Sort by score and return best match
   candidates.sort((a, b) => b.score - a.score);
+  
+  // Debug logging
+  if (candidates.length > 0) {
+    console.log(`Best match for "${fieldLabel}":`, candidates[0].qa.question, `(score: ${candidates[0].score.toFixed(2)})`);
+  } else {
+    console.log(`No match found for "${fieldLabel}"`);
+  }
+  
   return candidates.length > 0 ? candidates[0].qa : null;
 }
 
 function calculateMatchScore(fieldLabel, question, tags) {
   let score = 0;
   
-  // Exact match gets highest score
-  if (fieldLabel === question) return 1.0;
+  // Normalize text for better matching
+  const normalizeText = (text) => text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizedField = normalizeText(fieldLabel);
+  const normalizedQuestion = normalizeText(question);
   
-  // Substring matches
-  if (fieldLabel.includes(question) || question.includes(fieldLabel)) {
+  // Exact match gets highest score
+  if (normalizedField === normalizedQuestion) return 1.0;
+  
+  // Substring matches (bidirectional)
+  if (normalizedField.includes(normalizedQuestion) || normalizedQuestion.includes(normalizedField)) {
     score += 0.8;
   }
   
-  // Fuzzy matching for common variations
+  // Word-level matching
+  const fieldWords = normalizedField.split(' ').filter(w => w.length > 2);
+  const questionWords = normalizedQuestion.split(' ').filter(w => w.length > 2);
+  
+  if (fieldWords.length > 0 && questionWords.length > 0) {
+    const commonWords = fieldWords.filter(word => questionWords.includes(word));
+    const wordMatchRatio = commonWords.length / Math.max(fieldWords.length, questionWords.length);
+    score += wordMatchRatio * 0.6;
+  }
+  
+  // Enhanced fuzzy matching for common variations
   const commonMappings = {
-    'about yourself': ['tell me about yourself', 'introduce yourself', 'background'],
-    'strengths': ['strength', 'what are you good at', 'skills'],
-    'weaknesses': ['weakness', 'areas for improvement', 'challenges'],
-    'why here': ['why do you want to work here', 'why this company', 'interest'],
-    'experience': ['tell me about your experience', 'background', 'work history'],
-    'salary': ['salary expectation', 'compensation', 'pay', 'expected salary'],
-    'questions': ['do you have questions', 'questions for us', 'anything to ask']
+    'about yourself': ['tell me about yourself', 'introduce yourself', 'background', 'who are you', 'describe yourself'],
+    'strengths': ['strength', 'what are you good at', 'skills', 'strong points', 'best qualities'],
+    'weaknesses': ['weakness', 'areas for improvement', 'challenges', 'what to improve', 'weak points'],
+    'why here': ['why do you want to work here', 'why this company', 'interest in company', 'motivation to join'],
+    'experience': ['tell me about your experience', 'background', 'work history', 'professional experience'],
+    'salary': ['salary expectation', 'compensation', 'pay', 'expected salary', 'salary range'],
+    'questions': ['do you have questions', 'questions for us', 'anything to ask', 'your questions'],
+    'goals': ['career goals', 'future plans', 'where do you see yourself', 'ambitions'],
+    'challenges': ['difficult situation', 'biggest challenge', 'problem you faced', 'tough time'],
+    'teamwork': ['team player', 'working with others', 'collaboration', 'team experience'],
+    'leadership': ['leadership experience', 'led a team', 'management', 'taking charge'],
+    'motivation': ['what motivates you', 'drives you', 'passion', 'inspiration']
   };
   
   for (const [key, variations] of Object.entries(commonMappings)) {
-    if (fieldLabel.includes(key) || variations.some(v => fieldLabel.includes(v))) {
-      if (question.includes(key) || variations.some(v => question.includes(v))) {
-        score += 0.7;
-      }
+    const fieldMatches = variations.some(v => normalizedField.includes(v)) || normalizedField.includes(key);
+    const questionMatches = variations.some(v => normalizedQuestion.includes(v)) || normalizedQuestion.includes(key);
+    
+    if (fieldMatches && questionMatches) {
+      score += 0.7;
+      break; // Only count the best mapping match
     }
   }
   
-  // Tag matching
-  const fieldWords = fieldLabel.split(/\W+/).filter(w => w.length > 2);
-  const tagMatches = tags.filter(tag => 
-    fieldWords.some(word => tag.toLowerCase().includes(word))
-  );
-  score += tagMatches.length * 0.2;
+  // Tag matching with better scoring
+  if (tags && tags.length > 0) {
+    const normalizedTags = tags.map(tag => normalizeText(tag));
+    const tagMatches = normalizedTags.filter(tag => 
+      fieldWords.some(word => tag.includes(word)) || 
+      normalizedField.includes(tag)
+    );
+    score += Math.min(tagMatches.length * 0.15, 0.4); // Cap tag contribution
+  }
   
-  // Keyword matching with better weighting
-  const questionWords = question.split(/\W+/).filter(w => w.length > 2);
-  const keywordMatches = questionWords.filter(word => fieldLabel.includes(word));
-  score += (keywordMatches.length / questionWords.length) * 0.5;
+  // Boost score for key interview question indicators
+  const interviewKeywords = ['why', 'what', 'how', 'tell', 'describe', 'explain', 'experience', 'yourself'];
+  const fieldHasKeywords = interviewKeywords.some(keyword => normalizedField.includes(keyword));
+  const questionHasKeywords = interviewKeywords.some(keyword => normalizedQuestion.includes(keyword));
+  
+  if (fieldHasKeywords && questionHasKeywords) {
+    score += 0.1;
+  }
+  
+  // Length similarity bonus (prefer similar length questions)
+  const lengthRatio = Math.min(fieldLabel.length, question.length) / Math.max(fieldLabel.length, question.length);
+  if (lengthRatio > 0.5) {
+    score += 0.1 * lengthRatio;
+  }
   
   return Math.min(score, 1.0);
 }
@@ -479,6 +696,53 @@ async function fillField(selector, answer) {
       showStatus('Error filling field', 'error');
     }
   }
+}
+
+function showPreviewModal(question, answer) {
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('preview-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'preview-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Answer Preview</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="preview-question"></div>
+          <div class="preview-answer"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary modal-close">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Add close event listeners
+    modal.querySelectorAll('.modal-close').forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    });
+    
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+  }
+  
+  // Update content
+  modal.querySelector('.preview-question').innerHTML = `<strong>Question:</strong> ${escapeHtml(question)}`;
+  modal.querySelector('.preview-answer').innerHTML = `<strong>Answer:</strong><br>${escapeHtml(answer).replace(/\n/g, '<br>')}`;
+  
+  // Show modal
+  modal.style.display = 'flex';
 }
 
 function suggestQA(fieldLabel) {

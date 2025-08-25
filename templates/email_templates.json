@@ -1,22 +1,34 @@
 {
-  "interview_invite": {
-    "name": "Interview Invitation",
-    "subject": "Interview Invitation - {{position}} at {{company}}",
-    "content": "Dear {{name}},\n\nThank you for your application for the {{position}} role at {{company}}. We were impressed with your background and would like to invite you for an interview.\n\nInterview Details:\n- Position: {{position}}\n- Date: {{date}}\n- Time: {{time}}\n- Format: {{format}}\n\nPlease confirm your availability by replying to this email. If the proposed time doesn't work for you, please suggest alternative times.\n\nWe look forward to speaking with you.\n\nBest regards,\n{{recruiter_name}}\n{{company}}\nHiring Team",
-    "variables": ["name", "position", "company", "date", "time", "format", "recruiter_name"]
+  "thank_you": {
+    "subject": "Thank you for the interview",
+    "body": "Dear [Interviewer Name],\n\nThank you for taking the time to meet with me yesterday to discuss the [Position Title] role at [Company Name]. I enjoyed our conversation about [specific topic discussed] and learning more about your team's approach to [relevant area].\n\nOur discussion reinforced my enthusiasm for this opportunity. I'm particularly excited about [specific aspect of the role/company] and believe my experience in [relevant skill/experience] would allow me to contribute effectively to your team.\n\nPlease don't hesitate to reach out if you need any additional information. I look forward to hearing about the next steps in the process.\n\nBest regards,\n[Your Name]"
   },
-  
-  "rejection_email": {
-    "name": "Rejection Email",
-    "subject": "Update on your application - {{position}} at {{company}}",
-    "content": "Dear {{name}},\n\nThank you for your interest in the {{position}} role at {{company}} and for taking the time to interview with our team.\n\nAfter careful consideration, we have decided to move forward with other candidates whose experience more closely matches our current needs.\n\nWe were impressed with your background and encourage you to apply for future opportunities that align with your skills and experience.\n\nWe appreciate the time you invested in the application process and wish you success in your job search.\n\nBest regards,\n{{recruiter_name}}\n{{company}}\nHiring Team",
-    "variables": ["name", "position", "company", "recruiter_name"]
-  },
-  
   "follow_up": {
-    "name": "Follow-up Email",
-    "subject": "Following up on your {{position}} application",
-    "content": "Dear {{name}},\n\nI hope this email finds you well. I wanted to follow up on your application for the {{position}} role at {{company}}.\n\nWe have received your application and are currently reviewing all candidates. Our hiring process typically takes {{timeline}}, and we will be in touch with next steps soon.\n\nIn the meantime, please don't hesitate to reach out if you have any questions about the role or our company.\n\nThank you for your patience and continued interest in joining our team.\n\nBest regards,\n{{recruiter_name}}\n{{company}}\nHiring Team",
-    "variables": ["name", "position", "company", "timeline", "recruiter_name"]
+    "subject": "Following up on our interview",
+    "body": "Dear [Interviewer Name],\n\nI hope this message finds you well. I wanted to follow up on our interview for the [Position Title] position that we discussed on [Interview Date].\n\nI remain very interested in this opportunity and am excited about the possibility of joining your team. If you need any additional information or clarification about my background and qualifications, please let me know.\n\nI understand that hiring decisions take time, and I appreciate your consideration. I look forward to hearing from you when you have an update.\n\nThank you again for your time.\n\nBest regards,\n[Your Name]"
+  },
+  "networking": {
+    "subject": "Great connecting with you",
+    "body": "Hi [Contact Name],\n\nIt was wonderful meeting you at [Event/Location] yesterday. I really enjoyed our conversation about [specific topic] and your insights into [relevant area/industry].\n\nI'd love to stay connected and continue our discussion. If you're open to it, I'd be happy to grab coffee sometime to learn more about your experience at [Company] and share more about my background in [your field].\n\nThank you again for the great conversation!\n\nBest,\n[Your Name]"
+  },
+  "post_interview_research": {
+    "subject": "Additional thoughts on our discussion",
+    "body": "Dear [Interviewer Name],\n\nThank you again for our interview yesterday regarding the [Position Title] role. After our conversation, I did some additional research on [specific topic/challenge discussed] that we talked about.\n\nI found an interesting article/case study about [relevant finding] that I thought might be relevant to your team's work on [project/initiative]. [Brief insight or suggestion].\n\nThis reinforces my excitement about the opportunity to contribute to [specific area] and brings additional perspective to how my experience in [relevant skill] could add value to your team.\n\nI look forward to continuing our conversation.\n\nBest regards,\n[Your Name]"
+  },
+  "rejection_response": {
+    "subject": "Thank you for the opportunity",
+    "body": "Dear [Interviewer Name],\n\nThank you for informing me about your decision regarding the [Position Title] position. While I'm disappointed that I won't be joining your team at this time, I genuinely appreciated the opportunity to learn more about [Company Name] and the excellent work you're doing.\n\nI was impressed by [specific positive aspect about company/team] and would welcome the opportunity to be considered for future roles that might be a good fit for my background.\n\nThank you again for your time and consideration. I wish you and your team continued success.\n\nBest regards,\n[Your Name]"
+  },
+  "offer_acceptance": {
+    "subject": "Accepting the [Position Title] offer",
+    "body": "Dear [Hiring Manager Name],\n\nI am delighted to formally accept your offer for the [Position Title] position at [Company Name]. Thank you for this wonderful opportunity.\n\nAs we discussed, I understand that my start date will be [Start Date], and my starting salary will be [Salary Amount] with [mention key benefits if discussed].\n\nI'm excited to join the team and contribute to [specific project/goal mentioned]. Please let me know if there are any documents or preparations needed before my start date.\n\nI look forward to working with you and the team.\n\nBest regards,\n[Your Name]"
+  },
+  "salary_negotiation": {
+    "subject": "Following up on the [Position Title] offer",
+    "body": "Dear [Hiring Manager Name],\n\nThank you for extending the offer for the [Position Title] position. I'm very excited about the opportunity to join [Company Name] and contribute to [specific team/project].\n\nAfter careful consideration, I would like to discuss the compensation package. Based on my research of market rates and my [X years] of experience in [relevant field], I was hoping we could explore a starting salary of $[Amount].\n\n[Optional: Brief justification for the request based on skills, experience, or market research]\n\nI'm confident that my skills in [relevant skills] will bring significant value to the team, and I'm very much looking forward to contributing to [company goals].\n\nI'd be happy to discuss this further at your convenience.\n\nBest regards,\n[Your Name]"
+  },
+  "referral_request": {
+    "subject": "Exploring opportunities at [Company Name]",
+    "body": "Hi [Contact Name],\n\nI hope you're doing well! I've been following [Company Name]'s work in [relevant area] and am very impressed by [specific achievement/project].\n\nI noticed that there's a [Position Title] opening that aligns perfectly with my background in [relevant experience]. Given your experience at the company, I was wondering if you might be willing to share any insights about the role or the team?\n\nI'd also be grateful if you'd feel comfortable providing a referral, as I believe my experience in [specific skills/achievements] would be a great fit for what they're looking for.\n\nI'd be happy to send over my resume and discuss further at your convenience. Thank you for considering this!\n\nBest,\n[Your Name]"
   }
 }

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireBot Test - Debug Question Detection</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .test-field { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        textarea { width: 100%; height: 80px; }
+        input[type="text"] { width: 100%; padding: 8px; }
+        .should-detect { background: #e8f5e8; }
+        .should-ignore { background: #ffe8e8; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>HireBot Question Detection Test</h1>
+    <p>This page tests the improved question detection. Fields with green background should be detected, red should be ignored.</p>
+    
+    <button onclick="runTest()">Test Detection Logic</button>
+    <div id="results"></div>
+    
+    <h2>Fields That SHOULD Be Detected (Interview Questions)</h2>
+    
+    <div class="test-field should-detect">
+        <label for="about-you">Tell me about yourself</label>
+        <textarea id="about-you" placeholder="Please provide a brief introduction about your background and career goals"></textarea>
+    </div>
+    
+    <div class="test-field should-detect">
+        <label for="why-company">Why do you want to work here?</label>
+        <textarea id="why-company"></textarea>
+    </div>
+    
+    <div class="test-field should-detect">
+        <label for="strengths">What are your strengths?</label>
+        <textarea id="strengths"></textarea>
+    </div>
+    
+    <div class="test-field should-detect">
+        <label for="challenge">Describe a challenging project you worked on</label>
+        <textarea id="challenge"></textarea>
+    </div>
+    
+    <div class="test-field should-detect">
+        <textarea placeholder="Where do you see yourself in 5 years?"></textarea>
+    </div>
+    
+    <div class="test-field should-detect">
+        <textarea placeholder="How do you handle stress and pressure?"></textarea>
+    </div>
+    
+    <h2>Fields That SHOULD Be Ignored (Filters/Controls)</h2>
+    
+    <div class="test-field should-ignore">
+        <label for="salary-min">Minimum Salary</label>
+        <input type="number" id="salary-min" placeholder="50000">
+    </div>
+    
+    <div class="test-field should-ignore">
+        <label for="location">Location</label>
+        <input type="text" id="location" placeholder="City, State">
+    </div>
+    
+    <div class="test-field should-ignore">
+        <label for="experience">Years of Experience</label>
+        <input type="number" id="experience" placeholder="3">
+    </div>
+    
+    <div class="test-field should-ignore">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" placeholder="Enter your name">
+    </div>
+    
+    <div class="test-field should-ignore">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="your@email.com">
+    </div>
+    
+    <div class="test-field should-ignore">
+        <input type="text" placeholder="Search jobs">
+    </div>
+    
+    <script>
+        function runTest() {
+            // This function simulates the HireBot detection logic
+            const fields = [];
+            const inputs = [...document.querySelectorAll('input, textarea')].filter(el => {
+                return el.offsetParent !== null && 
+                       el.type !== 'hidden' && 
+                       el.type !== 'submit' && 
+                       el.type !== 'button' &&
+                       el.type !== 'checkbox' &&
+                       el.type !== 'radio' &&
+                       el.type !== 'range' &&
+                       el.type !== 'number' &&
+                       el.type !== 'date' &&
+                       el.type !== 'time' &&
+                       el.type !== 'color' &&
+                       el.type !== 'search' &&
+                       !el.disabled &&
+                       !el.readOnly;
+            });
+
+            function isLikelyQuestionText(text) {
+                if (!text || text.length < 10) return false;
+                
+                const excludePatterns = [
+                    /^(salary|pay|wage|income|amount|price|cost|fee|budget|rate)\s*(from|to|min|max|minimum|maximum|range|between)?$/i,
+                    /^(location|city|state|country|zip|postal|address|area|region|distance)$/i,
+                    /^(company|organization|employer|industry|department|role|position|title|level)$/i,
+                    /^(experience|years?|months?|duration|period|time|since|until|from|to)$/i,
+                    /^(name|email|phone|contact|profile|account|login|password|username)$/i,
+                    /^(search|filter|sort|select)$/i
+                ];
+                
+                if (excludePatterns.some(pattern => pattern.test(text.trim()))) {
+                    return false;
+                }
+                
+                const questionIndicators = [
+                    /\b(tell|describe|explain|why|how|what|when|where|which|would|could|should|do|did|have|has|are|is|will|can)\b/i,
+                    /\b(experience|background|strength|weakness|challenge|goal|motivation|passion|interest)\b/i,
+                    /\b(team|project|problem|solution|achievement|accomplishment|success|failure|learn|grow)\b/i,
+                    /\b(yourself|career|future|past|previous|current|ideal|preferred|favorite|best|worst)\b/i,
+                    /\?(.*)?$/,
+                    /\b(interview|question|answer|response|comment|feedback|opinion|thought|view)\b/i
+                ];
+                
+                return questionIndicators.some(pattern => pattern.test(text));
+            }
+
+            function isLikelyInterviewQuestion(label, element) {
+                if (!label || label.length < 10) return false;
+                
+                const isTextarea = element.tagName.toLowerCase() === 'textarea';
+                const isLongInput = element.type === 'text' && (element.maxLength > 100 || !element.maxLength);
+                
+                if (isTextarea) return true;
+                if (isLongInput && isLikelyQuestionText(label)) return true;
+                
+                const interviewPatterns = [
+                    /\b(tell\s+(me|us)\s+about|describe\s+your|explain\s+your)\b/i,
+                    /\b(why\s+(do\s+)?you\s+(want|chose|decided|like|think))\b/i,
+                    /\b(what\s+(is\s+your|are\s+your|motivates|drives|interests))\b/i,
+                    /\b(how\s+(do\s+you|would\s+you|did\s+you))\b/i,
+                    /\b(where\s+do\s+you\s+see\s+yourself)\b/i,
+                    /\b(strength|weakness|challenge|goal|achievement|accomplishment)\b/i,
+                    /\b(handle\s+(conflict|pressure|stress|difficult))\b/i
+                ];
+                
+                return interviewPatterns.some(pattern => pattern.test(label));
+            }
+
+            inputs.forEach(el => {
+                let label = '';
+                
+                if (el.placeholder && el.placeholder.trim()) {
+                    label = el.placeholder.trim();
+                }
+                
+                if (!label && el.id) {
+                    const lbl = document.querySelector(`label[for='${el.id}']`);
+                    if (lbl && lbl.textContent.trim()) {
+                        label = lbl.textContent.trim();
+                    }
+                }
+                
+                if (!label && el.closest('label')) {
+                    const parentLabel = el.closest('label').textContent.trim();
+                    if (parentLabel) label = parentLabel;
+                }
+                
+                if (label) {
+                    label = label.replace(/[*:]+$/, '').trim();
+                    
+                    if (label.length > 3 && isLikelyInterviewQuestion(label, el)) {
+                        fields.push({
+                            label: label,
+                            tag: el.tagName.toLowerCase(),
+                            type: el.getAttribute('type') || '',
+                            element: el
+                        });
+                    }
+                }
+            });
+
+            // Display results
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="debug-section">
+                    <h3>Detection Results</h3>
+                    <p><strong>Total fields found:</strong> ${inputs.length}</p>
+                    <p><strong>Interview questions detected:</strong> ${fields.length}</p>
+                    <h4>Detected Questions:</h4>
+                    <ul>
+                        ${fields.map(f => `<li><strong>${f.tag}[${f.type}]:</strong> ${f.label}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+
+            console.log('HireBot Test Results:', fields);
+        }
+    </script>
+</body>
+</html>
